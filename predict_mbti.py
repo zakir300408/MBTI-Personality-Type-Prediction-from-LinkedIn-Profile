@@ -1,21 +1,22 @@
 import os
 import fitz  # PyMuPDF
-from openai import OpenAI
+import requests
+import json
 
-token = os.environ["GITHUB_TOKEN"]
-endpoint = "https://models.inference.ai.azure.com"
-model_name_primary = "gpt-4o-mini"  # primary model for MBTI prediction
-model_name_supervisor = "gpt-4o"  # higher-level supervisor model for uncertainty analysis
+# OpenRouter API key
+OPENROUTER_API_KEY = "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"  
 
-client = OpenAI(
-    base_url=endpoint,
-    api_key=token,
-)
+# OpenRouter API base URL
+base_url = "https://openrouter.ai/api/v1/chat/completions"
+
+# Models
+model_name_primary = "meta-llama/llama-3.2-3b-instruct:free"
+model_name_supervisor = "meta-llama/llama-3.2-3b-instruct:free"
 
 
 def extract_text_from_pdf(pdf_path):
     """
-    extract text from the PDF file
+    Extract text from the PDF file
     """
     doc = fitz.open(pdf_path)
     text = ""
@@ -26,7 +27,7 @@ def extract_text_from_pdf(pdf_path):
 
 def clean_text(text):
     """
-    clean the extracted text by removing new lines and extra spaces
+    Clean the extracted text by removing new lines and extra spaces
     """
     cleaned_text = text.replace("\n", " ").strip()
     return cleaned_text
@@ -34,61 +35,71 @@ def clean_text(text):
 
 def get_personality_prediction(text, model_name, temperature=0.7, max_tokens=1000):
     """
-    use the primary model to predict the MBTI personality type
+    Use the primary model to predict the MBTI personality type
     """
-    response = client.chat.completions.create(
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an assistant that predicts the MBTI personality type based on written descriptions. Analyze the text and provide the most likely MBTI type"
-            },
-            {
-                "role": "user",
-                "content": f"Please predict the MBTI personality type for the following text: {text}"
-            }
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system",
+             "content": "You are an assistant that predicts the MBTI personality type based on written descriptions. Analyze the text and provide the most likely MBTI type."},
+            {"role": "user", "content": f"Please predict the MBTI personality type for the following text: {text}"}
         ],
-        temperature=temperature,
-        top_p=1.0,
-        max_tokens=max_tokens,
-        model=model_name
-    )
-    prediction = response.choices[0].message.content
-    return prediction
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    }
+
+    response = requests.post(base_url, headers=headers, data=json.dumps(payload))
+
+    if response.status_code == 200:
+        result = response.json()
+        return result['choices'][0]['message']['content']
+    else:
+        return f"Error: {response.status_code} - {response.text}"
 
 
 def get_supervisor_feedback(prediction, text):
     """
-    use the supervisor model to evaluate the MBTI prediction and provide confidence in the result
+    Use the supervisor model to evaluate the MBTI prediction and provide confidence in the result
     """
     possible_types = extract_possible_types(prediction)
     relevant_context = text[:1000]
 
-    response = client.chat.completions.create(
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert psychologist and MBTI specialist. Your task is to evaluate the confidence in the predicted MBTI types based on the context provided. "
-                           "Only assess the top predicted types and provide a confidence percentage for each, based on the context. Give confidence levels in this format: "
-                           "'Most likely INTJ, 75% confident. INTP, 25% confident.'"
-            },
-            {
-                "role": "user",
-                "content": f"Here is the predicted MBTI type(s): {possible_types}. The relevant context is: {relevant_context}. "
-                           "Please evaluate the confidence levels for the predicted types."
-            }
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "model": model_name_supervisor,
+        "messages": [
+            {"role": "system",
+             "content": "You are an expert psychologist and MBTI specialist. Your task is to evaluate the confidence in the predicted MBTI types based on the context provided. "
+                        "Only assess the top predicted types and provide a confidence percentage for each, based on the context. Give confidence levels in this format: "
+                        "'Most likely INTJ, 75% confident. INTP, 25% confident.'"},
+            {"role": "user",
+             "content": f"Here is the predicted MBTI type(s): {possible_types}. The relevant context is: {relevant_context}. Please evaluate the confidence levels for the predicted types."}
         ],
-        temperature=0.5,
-        top_p=1.0,
-        max_tokens=1000,
-        model=model_name_supervisor
-    )
-    feedback = response.choices[0].message.content
-    return feedback
+        "temperature": 0.5,
+        "max_tokens": 1000
+    }
+
+    response = requests.post(base_url, headers=headers, data=json.dumps(payload))
+
+    if response.status_code == 200:
+        result = response.json()
+        return result['choices'][0]['message']['content']
+    else:
+        return f"Error: {response.status_code} - {response.text}"
 
 
 def extract_possible_types(prediction):
     """
-    extract possible MBTI types from the initial prediction output
+    Extract possible MBTI types from the initial prediction output
     """
     types = []
     if "INTJ" in prediction:
@@ -105,7 +116,7 @@ def extract_possible_types(prediction):
 
 def get_final_prediction(pdf_path):
     """
-    extract text from the PDF, get the initial prediction, and verify it using the supervisor model
+    Extract text from the PDF, get the initial prediction, and verify it using the supervisor model
     """
     raw_text = extract_text_from_pdf(pdf_path)
     cleaned_text = clean_text(raw_text)
@@ -126,7 +137,7 @@ def get_final_prediction(pdf_path):
 
 def parse_confidence(feedback):
     """
-    parse the supervisor's feedback and extract the MBTI type with confidence levels
+    Parse the supervisor's feedback and extract the MBTI type with confidence levels
     """
     confidence_levels = {
         'distribution': {},
@@ -150,5 +161,6 @@ def parse_confidence(feedback):
     return confidence_levels
 
 
-pdf_path = "Profile.pdf"  # download the PDF file from linkedin profile
+# Replace with the path to your PDF file
+pdf_path = "Profile.pdf"
 get_final_prediction(pdf_path)
