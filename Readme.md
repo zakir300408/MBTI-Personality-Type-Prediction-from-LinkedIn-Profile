@@ -14,31 +14,31 @@ You need Python version 3.8 or higher installed on your machine.
 Install the necessary libraries using `pip`:
 
 ```bash
-pip install openai pymupdf
+pip install pymupdf
 ```
 
 
-### 3. OpenAI API Key
-You will need an OpenAI API key to use the models for both predictions and feedback. Here's how to get and set it up:
+### 3. openrouter API Key
+You will need an openrouter API key to use the models for both predictions and feedback. Here's how to get and set it up:
 
-#### Steps to Get the OpenAI API Key:
-1. **Create an OpenAI Account**:  
-   Go to [OpenAI](https://platform.openai.com) and create an account if you don't have one already.
+#### Steps to Get the openrouter API Key:
+1. **Create an openrouter Account**:  
+   Go to [openrouter](https://openrouter.ai/) and create an account if you don't have one already.
 
 2. **Generate an API Key**:  
-   After logging into OpenAI, go to the **API keys** section in your account dashboard. Generate a new secret key (or use an existing one) and copy it.
+   After logging into openrouter, go to the **API keys** section in your account dashboard. Generate a new secret key (or use an existing one) and copy it.
 
 #### Set Up the API Key:
 Once you have your API key, you need to configure it in your environment. You can set the key as an environment variable in your terminal:
 
 - **On macOS/Linux (using bash)**:
 ```bash
-export OPENAI_API_KEY="your-openai-api-key-here"
+export openrouter_API_KEY="your-openrouter-api-key-here"
 ```
 
 - **On Windows (using PowerShell)**:
 ```bash
-- $env:OPENAI_API_KEY="your-openai-api-key-here"
+- $env:openrouter_API_KEY="your-openrouter-api-key-here"
 ```
 
 Alternatively, you can hardcode the API key directly in the script, but storing it as an environment variable is more secure.
